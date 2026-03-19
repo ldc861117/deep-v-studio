@@ -1,5 +1,7 @@
 # Deep V Studio
 
+[🇨🇳 中文版](README_CN.md)
+
 > **Multi-model video generation studio** — built on top of [LTX-2](https://github.com/Lightricks/LTX-2), extended with BYOK cloud provider support.
 
 [![Upstream](https://img.shields.io/badge/upstream-Lightricks%2FLTX--2-blue?logo=github)](https://github.com/Lightricks/LTX-2)
