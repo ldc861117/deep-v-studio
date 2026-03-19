@@ -123,8 +123,17 @@ Architect: review PR (spec + quality) ──→  merge / request changes
 ### Session Contract Template
 Every Jules prompt MUST include:
 - **Goal**: one-sentence objective
-- **File boundaries**: files to create (owned) and files to read (read-only)
-- **Interface contract**: which ABCs / dataclasses / functions to use
+- **File boundaries**: files to create (owned), files to read (read-only), and files to NEVER touch (e.g., `uv.lock`, `pyproject.toml` unless explicitly authorized)
+- **Interface contract with API snapshot**: paste the actual type definitions (dataclass fields, method signatures) that Jules will depend on — don't just name the file, include the source. This prevents Jules from assuming fields/methods that don't exist.
 - **TDD mandate**: write test FIRST, RED → GREEN → REFACTOR
 - **Convention pointer**: "Read AGENTS.md first"
 - **Exit criteria**: tests pass, ruff clean, conventional commit made
+- **Boundary violation rule**: if you need a field/method that doesn't exist on a shared type, do NOT assume it exists — document the need in a comment and raise it in the PR description
+
+### Pre-merge Review Checklist (Architect)
+1. `ruff check` + `ruff format --check` pass on changed files
+2. Smoke-test: import the new module and instantiate the class (catches missing deps, wrong field names)
+3. Verify file boundaries: diff should ONLY contain files listed in the task's "owned" list
+4. Review test quality: mocks are at the right layer, edge cases covered
+5. Commit message follows Conventional Commits format
+
