@@ -76,8 +76,10 @@ Every provider MUST:
    - `capabilities` property
 3. **Load API keys** via `ProviderConfig` (never hardcode)
 4. **Include type hints** on every method
-5. **Have tests** in `tests/test_providers/test_<name>.py` with mocked API calls
-6. **Pass** `ruff check` and `ruff format`
+5. **Have unit tests** in `tests/test_providers/test_<name>.py` with mocked API calls
+6. **Have an E2E demo script** in `scripts/demo_<name>.py` for real API testing
+7. **Verify against official API docs** — model names, endpoint paths, payload format, response structure must match the real API (unit tests with mocks do NOT validate this)
+8. **Pass** `ruff check` and `ruff format`
 
 ## File Ownership (Parallel Safety)
 
@@ -100,7 +102,16 @@ This project follows the [Superpowers](https://github.com/obra/superpowers) work
 3. **Write plan** → save to `docs/superpowers/plans/`, bite-sized TDD tasks
 4. **Execute** → one task at a time, TDD (RED → GREEN → REFACTOR), commit after each
 5. **Review** → spec compliance + code quality review
-6. **Finish** → verify all tests, merge or PR
+6. **E2E / UAT** → real API smoke test via `scripts/demo_<provider>.py`, user validates functionality and experience (unit tests ≠ working product)
+7. **Finish** → verify all tests, merge or PR
+
+### Testing Tiers
+| Tier | What | How | When |
+|---|---|---|---|
+| **Unit** | Code structure, logic branches, error paths | `pytest` with mocks | Every commit (Jules + CI) |
+| **API Fidelity** | Model names, endpoints, payload/response format | Architect verifies against official API docs | Pre-merge review |
+| **E2E Smoke** | Full flow: key → generate → poll → download | `scripts/demo_<provider>.py` with real API key | Post-merge, before next task |
+| **UAT** | User experience, output quality, error handling | User runs demo script, provides feedback | Before declaring feature "done" |
 
 ## Jules Dispatch Protocol
 

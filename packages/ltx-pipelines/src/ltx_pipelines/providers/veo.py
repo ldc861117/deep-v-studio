@@ -1,4 +1,7 @@
-"""Veo 3.1 video generation provider (Google Vertex AI / AI Studio)."""
+"""Veo 3.1 video generation provider (Google Gemini API / AI Studio).
+
+API Reference: https://ai.google.dev/gemini-api/docs/video
+"""
 
 from __future__ import annotations
 
@@ -19,18 +22,32 @@ from ltx_pipelines.providers.registry import register_provider
 
 logger = logging.getLogger(__name__)
 
+# Gemini API base URL for Veo
+_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+# Available model variants
+VEO_MODEL_STANDARD = "veo-3.1-generate-preview"
+VEO_MODEL_FAST = "veo-3.1-fast-generate-preview"
+
 
 class VeoProvider(VideoGenerationProvider):
     """Provider for Google's Veo 3.1 video generation model.
 
-    This provider supports both Google AI Studio (using API Key) and
-    Vertex AI (using OAuth2 tokens).
+    Uses the Gemini API (generativelanguage.googleapis.com) with
+    API Key authentication.
+
+    Supports:
+        - Text-to-video generation
+        - Configurable aspect ratio (16:9 or 9:16)
+        - Configurable duration (4, 6, or 8 seconds)
+        - Resolution control (720p, 1080p, 4k)
+        - Standard and Fast model variants
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, model: str = VEO_MODEL_STANDARD) -> None:
         self.config = get_provider_config("veo")
-        # Default to AI Studio if no base_url is provided
-        self.base_url = self.config.base_url or "https://generativelanguage.googleapis.com/v1beta"
+        self.base_url = self.config.base_url or _DEFAULT_BASE_URL
+        self.model = model
 
     @property
     def name(self) -> str:
@@ -44,114 +61,123 @@ class VeoProvider(VideoGenerationProvider):
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
             supported_modes=[GenerationMode.TEXT_TO_VIDEO],
-            max_resolution=(1280, 720),
-            max_duration_seconds=10.0,
+            max_resolution=(3840, 2160),  # 4K support
+            max_duration_seconds=8.0,
             supports_negative_prompt=False,
-            supports_seed=False,
+            supports_seed=True,  # Veo 3.x supports seed (partial determinism)
         )
 
     def _get_headers(self, api_key: str) -> dict[str, str]:
-        """Determine headers based on the API key format."""
-        # AI Studio keys are typically just a string, Vertex AI uses Bearer tokens
-        if api_key.startswith("ya29."):
-            return {"Authorization": f"Bearer {api_key}"}
-        return {"x-goog-api-key": api_key}
+        """Build request headers with API key authentication."""
+        return {
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json",
+        }
 
     async def validate_api_key(self) -> bool:
-        """Check if the API key is valid."""
+        """Check if the API key is valid by listing models."""
         api_key = self.config.resolve_api_key()
         if not api_key:
             return False
 
-        headers = self._get_headers(api_key)
         try:
             async with httpx.AsyncClient() as client:
-                # Use a lightweight endpoint to check the key
-                response = await client.get(f"{self.base_url}/models", headers=headers)
+                response = await client.get(
+                    f"{self.base_url}/models",
+                    headers=self._get_headers(api_key),
+                )
                 return response.status_code == 200
         except httpx.RequestError:
             logger.exception("Failed to validate Veo API key")
             return False
 
-    async def generate_video(self, request: VideoGenerationRequest) -> VideoGenerationResult:
-        """Submit a video generation job to Veo."""
+    async def generate_video(
+        self, request: VideoGenerationRequest
+    ) -> VideoGenerationResult:
+        """Submit a video generation job to Veo via predictLongRunning.
+
+        Uses the Gemini API format:
+            POST /models/{model}:predictLongRunning
+            {"instances": [{"prompt": "..."}]}
+
+        Returns:
+            VideoGenerationResult with an LRO operation name as task_id.
+        """
         api_key = self.config.resolve_api_key()
         if not api_key:
             return VideoGenerationResult(
                 task_id="",
                 status=TaskStatus.FAILED,
-                error_message="API key not found",
+                error_message="API key not found. Set VEO_API_KEY env var.",
             )
 
         headers = self._get_headers(api_key)
-        # Handle project/location for Vertex AI if provided in extra config
-        project = self.config.extra.get("project")
-        location = self.config.extra.get("location", "us-central1")
+        url = f"{self.base_url}/models/{self.model}:predictLongRunning"
 
-        if project:
-            url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/veo-001:predict"
-            payload = {
-                "instances": [
-                    {
-                        "prompt": request.prompt,
-                    }
-                ],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": "16:9",
-                },
-            }
-        else:
-            # AI Studio / Generative Language API
-            url = f"{self.base_url}/models/veo-001:generateVideo"
-            payload = {
-                "prompt": request.prompt,
-                "videoConfig": {
-                    "durationSeconds": request.duration_seconds,
-                    "aspectRatio": "16:9",
-                },
-            }
+        # Build the instance following the official API format
+        instance: dict[str, object] = {"prompt": request.prompt}
+
+        # Build generation config
+        config: dict[str, object] = {}
+
+        # Aspect ratio: "16:9" (default) or "9:16"
+        aspect_ratio = self.config.extra.get("aspect_ratio", "16:9")
+        config["aspectRatio"] = aspect_ratio
+
+        # Duration: "4", "6", or "8" seconds
+        if request.duration_seconds:
+            duration = str(min(int(request.duration_seconds), 8))
+            config["durationSeconds"] = duration
+
+        # Resolution: "720p", "1080p", or "4k"
+        resolution = self.config.extra.get("resolution", "720p")
+        config["resolution"] = resolution
+
+        # Person generation: "allow_all" or "allow_adult"
+        person_gen = self.config.extra.get("person_generation")
+        if person_gen:
+            config["personGeneration"] = person_gen
+
+        # Negative prompt
+        if request.negative_prompt:
+            config["negativePrompt"] = request.negative_prompt
+
+        # Seed (partial determinism)
+        if request.seed is not None:
+            config["seed"] = request.seed
+
+        payload: dict[str, object] = {"instances": [instance]}
+        if config:
+            payload["generationConfig"] = config
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    url,
-                    headers=headers,
-                    json=payload,
-                )
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
 
-                # Google APIs often return an Operation name for LRO
+                # The API returns an LRO with a "name" field
                 task_id = data.get("name")
-                if not task_id and "metadata" in data:
-                    # Sometimes it's in metadata for Vertex AI
-                    task_id = data.get("metadata", {}).get("name")
-
                 if not task_id:
-                    # If it's a synchronous response (unlikely for video, but for completeness)
-                    if "video" in data:
-                        return VideoGenerationResult(
-                            task_id="sync",
-                            status=TaskStatus.COMPLETED,
-                            video_url=data["video"].get("uri"),
-                        )
                     return VideoGenerationResult(
                         task_id="",
                         status=TaskStatus.FAILED,
-                        error_message="No task ID returned from API",
+                        error_message=f"No operation name in response: {data}",
                     )
 
+                logger.info("Veo generation started: %s", task_id)
                 return VideoGenerationResult(
                     task_id=task_id,
                     status=TaskStatus.PENDING,
                 )
+
         except httpx.HTTPStatusError as e:
-            logger.error("Veo API error: %s", e.response.text)
+            error_text = e.response.text
+            logger.error("Veo API error: %s", error_text)
             return VideoGenerationResult(
                 task_id="",
                 status=TaskStatus.FAILED,
-                error_message=f"API error: {e.response.text}",
+                error_message=f"API error ({e.response.status_code}): {error_text}",
             )
         except Exception as e:
             logger.exception("Unexpected error during Veo video generation")
@@ -162,10 +188,12 @@ class VeoProvider(VideoGenerationProvider):
             )
 
     async def check_status(self, task_id: str) -> VideoGenerationResult:
-        """Poll the status of a Veo generation task."""
-        if task_id == "sync":
-            return VideoGenerationResult(task_id=task_id, status=TaskStatus.COMPLETED)
+        """Poll the status of a Veo generation LRO.
 
+        The API returns {"done": true/false, ...}. When done:
+        - Success: .response.generateVideoResponse.generatedSamples[0].video.uri
+        - Error: .error.message
+        """
         api_key = self.config.resolve_api_key()
         if not api_key:
             return VideoGenerationResult(
@@ -175,19 +203,10 @@ class VeoProvider(VideoGenerationProvider):
             )
 
         headers = self._get_headers(api_key)
-        # Determine if task_id is a full resource name or just an ID
-        if task_id.startswith(("projects/", "operations/")):
-            # It's likely a full Vertex AI / LRO resource name
-            if task_id.startswith("projects/"):
-                location = task_id.split("/")[3]
-                url = f"https://{location}-aiplatform.googleapis.com/v1/{task_id}"
-            else:
-                url = f"{self.base_url}/{task_id}"
-        else:
-            url = f"{self.base_url}/operations/{task_id}"
+        url = f"{self.base_url}/{task_id}"
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -198,6 +217,7 @@ class VeoProvider(VideoGenerationProvider):
                         status=TaskStatus.PROCESSING,
                     )
 
+                # Check for error
                 if "error" in data:
                     return VideoGenerationResult(
                         task_id=task_id,
@@ -205,22 +225,20 @@ class VeoProvider(VideoGenerationProvider):
                         error_message=data["error"].get("message", "Unknown error"),
                     )
 
-                # Extract video URL
+                # Extract video URL from the official response format
                 video_url = None
-                resp_payload = data.get("response", {})
-                if "video" in resp_payload:
-                    video_url = resp_payload["video"].get("uri")
-                elif "outputs" in resp_payload:
-                    # Vertex AI format
-                    outputs = resp_payload.get("outputs", [])
-                    if outputs and "uri" in outputs[0]:
-                        video_url = outputs[0]["uri"]
+                resp = data.get("response", {})
+                gen_resp = resp.get("generateVideoResponse", {})
+                samples = gen_resp.get("generatedSamples", [])
+                if samples:
+                    video_url = samples[0].get("video", {}).get("uri")
 
                 return VideoGenerationResult(
                     task_id=task_id,
                     status=TaskStatus.COMPLETED,
                     video_url=video_url,
                 )
+
         except Exception as e:
             logger.exception("Error checking Veo task status")
             return VideoGenerationResult(
