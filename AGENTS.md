@@ -101,3 +101,30 @@ This project follows the [Superpowers](https://github.com/obra/superpowers) work
 4. **Execute** → one task at a time, TDD (RED → GREEN → REFACTOR), commit after each
 5. **Review** → spec compliance + code quality review
 6. **Finish** → verify all tests, merge or PR
+
+## Jules Dispatch Protocol
+
+> **⚠️ Jules is an online tool — it reads from the remote repo, not local files.**
+
+### Pre-dispatch Checklist (Architect MUST complete before dispatch)
+1. All foundation/interface code that the Jules task depends on is **committed and pushed**
+2. `AGENTS.md` is up-to-date on the remote
+3. Dispatch script or prompt includes: goal, file boundaries, interface contract, TDD requirement, exit criteria
+
+### Dispatch → Review Lifecycle
+```
+Architect: git add + commit + push  ──→  Architect: dispatch Jules task
+                                                       │
+User: "Jules is done, review it" ←── Jules: executes + commits
+                                                       │
+Architect: review PR (spec + quality) ──→  merge / request changes
+```
+
+### Session Contract Template
+Every Jules prompt MUST include:
+- **Goal**: one-sentence objective
+- **File boundaries**: files to create (owned) and files to read (read-only)
+- **Interface contract**: which ABCs / dataclasses / functions to use
+- **TDD mandate**: write test FIRST, RED → GREEN → REFACTOR
+- **Convention pointer**: "Read AGENTS.md first"
+- **Exit criteria**: tests pass, ruff clean, conventional commit made
