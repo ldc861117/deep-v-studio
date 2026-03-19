@@ -1,119 +1,161 @@
-# LTX-2
+# Deep V Studio
 
-[![Website](https://img.shields.io/badge/Website-LTX-181717?logo=google-chrome)](https://ltx.io)
-[![Model](https://img.shields.io/badge/HuggingFace-Model-orange?logo=huggingface)](https://huggingface.co/Lightricks/LTX-2.3)
-[![Demo](https://img.shields.io/badge/Demo-Try%20Now-brightgreen?logo=vercel)](https://app.ltx.studio/ltx-2-playground/i2v)
-[![Paper](https://img.shields.io/badge/Paper-PDF-EC1C24?logo=adobeacrobatreader&logoColor=white)](https://arxiv.org/abs/2601.03233)
-[![Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord)](https://discord.gg/ltxplatform)
+> **Multi-model video generation studio** — built on top of [LTX-2](https://github.com/Lightricks/LTX-2), extended with BYOK cloud provider support.
 
-**LTX-2** is the first DiT-based audio-video foundation model that contains all core capabilities of modern video generation in one model: synchronized audio and video, high fidelity, multiple performance modes, production-ready outputs, API access, and open access.
+[![Upstream](https://img.shields.io/badge/upstream-Lightricks%2FLTX--2-blue?logo=github)](https://github.com/Lightricks/LTX-2)
+[![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/4414adc0-086c-43de-b367-9362eeb20228" width="70%" poster=""> </video>
-</div>
+## Vision
 
-## 🚀 Quick Start
+Deep V Studio transforms LTX-2 from a single-model inference pipeline into a **unified video generation hub** that supports both local models and cloud APIs through a single interface.
 
-```bash
-# Clone the repository
-git clone https://github.com/Lightricks/LTX-2.git
-cd LTX-2
+**Core Goals:**
 
-# Set up the environment
-uv sync --frozen
-source .venv/bin/activate
+| Capability | Status | Description |
+|---|---|---|
+| 🏠 Local inference | ✅ Inherited | LTX-2/2.3 DiT models via existing `ltx-pipelines` |
+| ☁️ BYOK Cloud Providers | 🚧 Phase 1 | Seedance 2.0, Veo 3.1, NanoBanana 2/Pro |
+| 🔌 Provider Abstraction | ✅ Complete | Unified ABC interface + auto-config for all providers |
+| 🖥️ Desktop App | 📋 Planned | Native UI for model selection, generation, and comparison |
+
+### Why BYOK?
+
+**Bring Your Own Key** — use your existing API subscriptions with any supported model. No vendor lock-in, no middleman markup. One prompt → choose your engine → generate.
+
+## Architecture
+
+```
+packages/
+├── ltx-core/                  # Core model components (upstream)
+├── ltx-pipelines/             # Inference pipelines
+│   └── src/ltx_pipelines/
+│       ├── providers/         # ★ BYOK provider abstraction (NEW)
+│       │   ├── base.py        # VideoGenerationProvider ABC
+│       │   ├── config.py      # API key resolution (env → .env → TOML)
+│       │   ├── registry.py    # Provider discovery & instantiation
+│       │   ├── veo.py         # Google Veo 3.1
+│       │   ├── seedance.py    # ByteDance Seedance 2.0
+│       │   └── nanobanana.py  # NanoBanana 2 & Pro
+│       └── *.py               # LTX-2 pipeline implementations
+└── ltx-trainer/               # Training & fine-tuning tools
 ```
 
-### Required Models
+## Quick Start
 
-Download the following models from the [LTX-2.3 HuggingFace repository](https://huggingface.co/Lightricks/LTX-2.3):
+```bash
+# Clone
+git clone https://github.com/ldc861117/deep-v-studio.git
+cd deep-v-studio
 
-**LTX-2.3 Model Checkpoint** (choose and download one of the following)
-  * [`ltx-2.3-22b-dev.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-22b-dev.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-22b-dev.safetensors)
-  * [`ltx-2.3-22b-distilled.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-22b-distilled.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-22b-distilled.safetensors)
+# Set up environment
+uv sync --frozen
+source .venv/bin/activate
 
-**Spatial Upscaler** - Required for current two-stage pipeline implementations in this repository
-  * [`ltx-2.3-spatial-upscaler-x2-1.0.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-spatial-upscaler-x2-1.0.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.0.safetensors)
-  * [`ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x1.5-1.0.safetensors)
+# Configure a cloud provider (example: Veo 3.1)
+export VEO_API_KEY="your-api-key-here"
+```
 
-**Temporal Upscaler** - Supported by the model and will be required for future pipeline implementations
-  * [`ltx-2.3-temporal-upscaler-x2-1.0.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-temporal-upscaler-x2-1.0.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-temporal-upscaler-x2-1.0.safetensors)
+### API Key Configuration
 
-**Distilled LoRA** - Required for current two-stage pipeline implementations in this repository (except DistilledPipeline and ICLoraPipeline)
-  * [`ltx-2.3-22b-distilled-lora-384.safetensors`](https://huggingface.co/Lightricks/LTX-2.3/blob/main/ltx-2.3-22b-distilled-lora-384.safetensors) - [Download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-22b-distilled-lora-384.safetensors)
+Keys are resolved in priority order:
 
-**Gemma Text Encoder** (download all assets from the repository)
-  * [`Gemma 3`](https://huggingface.co/google/gemma-3-12b-it-qat-q4_0-unquantized/tree/main)
+1. **Environment variable** — `export VEO_API_KEY=...`
+2. **`.env` file** — in project root
+3. **TOML config** — `~/.config/deep-v-studio/providers.toml`
 
-**LoRAs**
-  * [`LTX-2.3-22b-IC-LoRA-Union-Control`](https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control) - [Download](https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-Union-Control/resolve/main/ltx-2.3-22b-ic-lora-union-control-ref0.5.safetensors)
-  * [`LTX-2.3-22b-IC-LoRA-Motion-Track-Control`](https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control) - [Download](https://huggingface.co/Lightricks/LTX-2.3-22b-IC-LoRA-Motion-Track-Control/resolve/main/ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors)
-  * [`LTX-2-19b-IC-LoRA-Detailer`](https://huggingface.co/Lightricks/LTX-2-19b-IC-LoRA-Detailer) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-IC-LoRA-Detailer/resolve/main/ltx-2-19b-ic-lora-detailer.safetensors)
-  * [`LTX-2-19b-IC-LoRA-Pose-Control`](https://huggingface.co/Lightricks/LTX-2-19b-IC-LoRA-Pose-Control) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-IC-LoRA-Pose-Control/resolve/main/ltx-2-19b-ic-lora-pose-control.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Dolly-In`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In/resolve/main/ltx-2-19b-lora-camera-control-dolly-in.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Dolly-Left`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left/resolve/main/ltx-2-19b-lora-camera-control-dolly-left.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Dolly-Out`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out/resolve/main/ltx-2-19b-lora-camera-control-dolly-out.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Dolly-Right`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Right) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Right/resolve/main/ltx-2-19b-lora-camera-control-dolly-right.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Jib-Down`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down/resolve/main/ltx-2-19b-lora-camera-control-jib-down.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Jib-Up`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up/resolve/main/ltx-2-19b-lora-camera-control-jib-up.safetensors)
-  * [`LTX-2-19b-LoRA-Camera-Control-Static`](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Static) - [Download](https://huggingface.co/Lightricks/LTX-2-19b-LoRA-Camera-Control-Static/resolve/main/ltx-2-19b-lora-camera-control-static.safetensors)
+```toml
+# ~/.config/deep-v-studio/providers.toml
+[providers.veo]
+api_key = "your-key"
 
-### Available Pipelines
+[providers.seedance]
+api_key = "your-key"
+```
 
-* **[TI2VidTwoStagesPipeline](packages/ltx-pipelines/src/ltx_pipelines/ti2vid_two_stages.py)** - Production-quality text/image-to-video with 2x upsampling (recommended)
-* **[TI2VidTwoStagesHQPipeline](packages/ltx-pipelines/src/ltx_pipelines/ti2vid_two_stages_hq.py)** - Same two-stage flow as above but uses the res_2s second-order sampler (fewer steps, better quality)
-* **[TI2VidOneStagePipeline](packages/ltx-pipelines/src/ltx_pipelines/ti2vid_one_stage.py)** - Single-stage generation for quick prototyping
-* **[DistilledPipeline](packages/ltx-pipelines/src/ltx_pipelines/distilled.py)** - Fastest inference with 8 predefined sigmas
-* **[ICLoraPipeline](packages/ltx-pipelines/src/ltx_pipelines/ic_lora.py)** - Video-to-video and image-to-video transformations (uses distilled model.)
-* **[KeyframeInterpolationPipeline](packages/ltx-pipelines/src/ltx_pipelines/keyframe_interpolation.py)** - Interpolate between keyframe images
-* **[A2VidPipelineTwoStage](packages/ltx-pipelines/src/ltx_pipelines/a2vid_two_stage.py)** - Audio-to-video generation conditioned on an input audio file
-* **[RetakePipeline](packages/ltx-pipelines/src/ltx_pipelines/retake.py)** - Regenerate a specific time region of an existing video
+## Upstream Relationship
 
-### ⚡ Optimization Tips
+This project is a **diverging fork** of [Lightricks/LTX-2](https://github.com/Lightricks/LTX-2). We maintain an active connection to upstream for core model improvements while building an independent product layer on top.
 
-* **Use DistilledPipeline** - Fastest inference with only 8 predefined sigmas (8 steps stage 1, 4 steps stage 2)
-* **Enable FP8 quantization** - Enables lower memory footprint: `--quantization fp8-cast` (CLI) or `quantization=QuantizationPolicy.fp8_cast()` (Python). For Hopper GPUs with TensorRT-LLM, use `--quantization fp8-scaled-mm` for FP8 scaled matrix multiplication.
-* **Install attention optimizations** - Use xFormers (`uv sync --extra xformers`) or [Flash Attention 3](https://github.com/Dao-AILab/flash-attention) for Hopper GPUs
-* **Use gradient estimation** - Reduce inference steps from 40 to 20-30 while maintaining quality (see [pipeline documentation](packages/ltx-pipelines/README.md#denoising-loop-optimization))
-* **Skip memory cleanup** - If you have sufficient VRAM, disable automatic memory cleanup between stages for faster processing
-* **Choose single-stage pipeline** - Use `TI2VidOneStagePipeline` for faster generation when high resolution isn't required
+### Fork Strategy
 
-## ✍️ Prompting for LTX-2
+```
+Lightricks/LTX-2 (upstream)          ldc861117/deep-v-studio (origin)
+     │                                        │
+     │  core model updates                    │  BYOK providers, desktop app,
+     │  (ltx-core, pipelines)                 │  product features
+     │                                        │
+     └──── periodic sync ────────────────────►│
+           (merge upstream/main)              │
+```
 
-When writing prompts, focus on detailed, chronological descriptions of actions and scenes. Include specific movements, appearances, camera angles, and environmental details - all in a single flowing paragraph. Start directly with the action, and keep descriptions literal and precise. Think like a cinematographer describing a shot list. Keep within 200 words. For best results, build your prompts using this structure:
+**Sync policy:**
+- `upstream` remote tracks `Lightricks/LTX-2`
+- Core packages (`ltx-core`, `ltx-trainer`) sync regularly from upstream
+- Our additions (`providers/`, `scripts/`, convention files) never conflict with upstream
+- Sync command:
+  ```bash
+  git fetch upstream
+  git merge upstream/main --no-edit
+  # Resolve any conflicts in our added files, then push
+  git push origin main
+  ```
 
-- Start with main action in a single sentence
-- Add specific details about movements and gestures
-- Describe character/object appearances precisely
-- Include background and environment details
-- Specify camera angles and movements
-- Describe lighting and colors
-- Note any changes or sudden events
+**What we DON'T change from upstream:**
+- `ltx-core/` package internals
+- Existing pipeline implementations in `ltx-pipelines/*.py`
+- Model checkpoint formats and compatibility
 
-For additional guidance on writing a prompt please refer to <https://ltx.video/blog/how-to-prompt-for-ltx-2>
+**What we ADD on top:**
+- `providers/` — BYOK cloud provider abstraction layer
+- `AGENTS.md`, `GEMINI.md` — AI-assisted development conventions
+- `scripts/` — Automation and task dispatch tools
+- `docs/superpowers/` — Specs and plans
+- Desktop application (future)
 
-### Automatic Prompt Enhancement
+## Development
 
-LTX-2 pipelines support automatic prompt enhancement via an `enhance_prompt` parameter.
+This project uses an **AI-assisted development paradigm** with [Superpowers](https://github.com/obra/superpowers) workflow and Jules CLI for parallel task execution.
 
-## 🔌 ComfyUI Integration
+| Role | Responsibility |
+|---|---|
+| **Architect** (Gemini) | Research, design, planning, code review, task dispatch |
+| **Builder** (Jules) | TDD implementation within isolated file boundaries |
+| **Decision-maker** (User) | Approval, prioritization, merge triggers |
 
-To use our model with ComfyUI, please follow the instructions at <https://github.com/Lightricks/ComfyUI-LTXVideo/>.
+See [`AGENTS.md`](AGENTS.md) for full conventions.
 
-## 📦 Packages
+### Commands
 
-This repository is organized as a monorepo with three main packages:
+```bash
+# Lint & format
+uv run ruff check .
+uv run ruff format .
 
-* **[ltx-core](packages/ltx-core/)** - Core model implementation, inference stack, and utilities
-* **[ltx-pipelines](packages/ltx-pipelines/)** - High-level pipeline implementations for text-to-video, image-to-video, and other generation modes
-* **[ltx-trainer](packages/ltx-trainer/)** - Training and fine-tuning tools for LoRA, full fine-tuning, and IC-LoRA
+# Test
+uv run pytest                              # All tests
+uv run pytest -k "test_providers"          # Provider tests only
 
-Each package has its own README and documentation. See the [Documentation](#-documentation) section below.
+# Sync upstream
+git fetch upstream && git merge upstream/main
+```
 
-## 📚 Documentation
+## Available Pipelines (from LTX-2)
 
-Each package includes comprehensive documentation:
+| Pipeline | Description |
+|---|---|
+| [TI2VidTwoStagesPipeline](packages/ltx-pipelines/src/ltx_pipelines/ti2vid_two_stages.py) | Production-quality text/image-to-video with 2x upsampling |
+| [TI2VidTwoStagesHQPipeline](packages/ltx-pipelines/src/ltx_pipelines/ti2vid_two_stages_hq.py) | Second-order sampler (fewer steps, better quality) |
+| [DistilledPipeline](packages/ltx-pipelines/src/ltx_pipelines/distilled.py) | Fastest inference with 8 predefined sigmas |
+| [ICLoraPipeline](packages/ltx-pipelines/src/ltx_pipelines/ic_lora.py) | Video-to-video and image-to-video with LoRA |
+| [A2VidPipelineTwoStage](packages/ltx-pipelines/src/ltx_pipelines/a2vid_two_stage.py) | Audio-conditioned video generation |
 
-* **[LTX-Core README](packages/ltx-core/README.md)** - Core model implementation, inference stack, and utilities
-* **[LTX-Pipelines README](packages/ltx-pipelines/README.md)** - High-level pipeline implementations and usage guides
-* **[LTX-Trainer README](packages/ltx-trainer/README.md)** - Training and fine-tuning documentation with detailed guides
+For model downloads and detailed pipeline docs, see the [upstream README](https://github.com/Lightricks/LTX-2#readme).
+
+## License
+
+This project inherits the [Apache 2.0 License](LICENSE) from upstream LTX-2.
+
+---
+
+<sub>Forked from [Lightricks/LTX-2](https://github.com/Lightricks/LTX-2) • Core model by [Lightricks](https://ltx.io)</sub>
